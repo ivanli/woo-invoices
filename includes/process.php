@@ -58,6 +58,10 @@ function sliced_woocommerce_create_quote_or_invoice( $type, $order, $items = nul
 
         update_post_meta( $id, "_sliced_quote_prefix", sliced_get_quote_prefix() );
         update_post_meta( $id, "_sliced_quote_number", sliced_get_next_quote_number() );
+        
+        $quote = get_option( 'sliced_quotes' );
+        update_post_meta( $id, "_sliced_quote_terms", $quote['terms'] );
+
         Sliced_Quote::update_quote_number( $id );
     
     } else {
@@ -67,6 +71,10 @@ function sliced_woocommerce_create_quote_or_invoice( $type, $order, $items = nul
         update_post_meta( $id, "_sliced_invoice_prefix", sliced_get_invoice_prefix() );
         update_post_meta( $id, "_sliced_invoice_number", sliced_get_next_invoice_number() );
         update_post_meta( $id, "_sliced_order_number", sliced_woocommerce_get_object_property( $order, 'order', 'id' ) );
+
+        $invoice = get_option( 'sliced_invoices' );
+        update_post_meta( $id, "_sliced_invoice_terms", $invoice['terms'] );
+
         Sliced_Invoice::update_invoice_number( $id );
         
         /*

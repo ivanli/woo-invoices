@@ -112,6 +112,10 @@ We are currently working on documentation but in the meantime, you can use the s
 Coming soon
 
 == Changelog ==
+= 2.0.0 =
+* Forked repository.
+* Implemented copying of default terms and conditions from settings when creating new quote / invoice.
+
 = 1.1.7 =
 * FIX: allow WooCommerce-tied invoices to use text labels from the "Translate" tab in Sliced Invoices
 
