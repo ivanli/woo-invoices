@@ -5,25 +5,62 @@
  * Plugin Name:       Woo Invoices by IKY.LI
  * Plugin URI:        https://iky.li
  * Description:       Create invoices and quotes from your Woocommerce orders. Requirements: Sliced Invoices & Woocommerce Plugins
- * Version:           2.0.0
+ * Version:           1.2.1
  * Author:            IKY.LI
  * Author URI:        https://iky.li
  * Text Domain:       woo-invoices
  * Domain Path:       /languages
  * WC requires at least: 2.7
- * WC tested up to: 3.4
+ * WC tested up to: 3.9
  */
 
 
 // Exit if accessed directly
-if ( ! defined('ABSPATH') ) { exit;
+if ( ! defined('ABSPATH') ) {
+	exit;
 }
 
 /**
- * Check if WooCommerce and sliced invoices is active
+ * Check if WooCommerce and Sliced Invoices are active
  **/
-if ( ! in_array( 'woocommerce/woocommerce.php', apply_filters( 'active_plugins', get_option( 'active_plugins' ) ) ) ) return;
-if ( ! in_array( 'sliced-invoices/sliced-invoices.php', apply_filters( 'active_plugins', get_option( 'active_plugins' ) ) ) ) return;
+function sliced_woocommerce_validate_settings() {
+	
+	$validated = true;
+
+	if ( ! in_array( 'sliced-invoices/sliced-invoices.php', apply_filters( 'active_plugins', get_option( 'active_plugins' ) ) ) ) {
+		
+		// Add a dashboard notice.
+		add_action( 'all_admin_notices', 'sliced_woocommerce_requirements_not_met_notice_sliced' );
+
+		$validated = false;
+	}
+	
+	if ( ! in_array( 'woocommerce/woocommerce.php', apply_filters( 'active_plugins', get_option( 'active_plugins' ) ) ) ) {
+		
+		// Add a dashboard notice.
+		add_action( 'all_admin_notices', 'sliced_woocommerce_requirements_not_met_notice_wc' );
+
+		$validated = false;
+	}
+	
+	return $validated;
+}
+
+function sliced_woocommerce_requirements_not_met_notice_wc() {
+	echo '<div id="message" class="error">';
+	echo '<p>' . sprintf( __( 'Woo Invoices cannot find the required <a href="%s">WooCommerce plugin</a>. Please make sure WooCommerce is <a href="%s">installed and activated</a>.', 'woo-invoices' ), 'https://wordpress.org/plugins/woocommerce/', admin_url( 'plugins.php' ) ) . '</p>';
+	echo '</div>';
+}
+
+function sliced_woocommerce_requirements_not_met_notice_sliced() {
+	echo '<div id="message" class="error">';
+	echo '<p>' . sprintf( __( 'Woo Invoices cannot find the required <a href="%s">Sliced Invoices plugin</a>. Please make sure Sliced Invoices is <a href="%s">installed and activated</a>.', 'woo-invoices' ), 'https://wordpress.org/plugins/sliced-invoices/', admin_url( 'plugins.php' ) ) . '</p>';
+	echo '</div>';
+}
+
+if ( ! sliced_woocommerce_validate_settings() ) {
+	return;
+}
 
 
 add_action('plugins_loaded', 'woocommerce_sliced_invoices_init', 49);
@@ -360,6 +397,7 @@ function woocommerce_sliced_invoices_init() {
             
             // Mark as quote or invoice status
             $order->update_status( 'wc-' . $this->quote_or_invoice, '' );
+			// wp_update_post( array( 'ID' => $order_id, 'post_status' => 'wc-'.$this->quote_or_invoice ) );
 
             // Reduce stock levels
 			if ( version_compare( WC()->version, '3.0.0', '>=' ) ) {
@@ -368,12 +406,22 @@ function woocommerce_sliced_invoices_init() {
 				$order->reduce_order_stock();
 			}
 
-            if( $this->quote_or_invoice === 'invoice' && $this->auto_invoice_email ) {
-                // send the invoice
-                $this->customer_invoice( $order );
-            } elseif ( $this->quote_or_invoice === 'quote' && $this->auto_quote_email ) {
-				// send the quote
-				$this->customer_quote( $order );
+			// Maybe send email
+			// @HACK to prevent double emails in WC >= 3.9
+			// -- it used to be that $order->update_status() (see above) did NOT trigger any email,
+			// but now it does.  We could avoid this extra email by directly setting the status using
+			// wp_update_post(), but then the right hooks will not have fired to load our email
+			// classes by this point.  And, since we still have to support older WC versions, this
+			// easiest solution to make things work in all versions is just set a flag for ourselves
+			// in a postmeta.  So there.
+			if ( ! get_post_meta( $order->get_id(), '_sliced_email_sent', true ) === '1' ) {
+				if( $this->quote_or_invoice === 'invoice' && $this->auto_invoice_email ) {
+					// send the invoice
+					$this->customer_invoice( $order );
+				} elseif ( $this->quote_or_invoice === 'quote' && $this->auto_quote_email ) {
+					// send the quote
+					$this->customer_quote( $order );
+				}
 			}
 
             // Remove cart
@@ -385,7 +433,7 @@ function woocommerce_sliced_invoices_init() {
 			if ( ! empty( $mails ) ) {
 				foreach ( $mails as $mail ) {
 					if ( $mail->id == 'new_order' ) {
-						$mail->trigger( $order->id, $order );
+						$mail->trigger( $order->get_id(), $order );
 					}
 				}
 			}
@@ -438,6 +486,9 @@ function woocommerce_sliced_invoices_init() {
 				! $sent_to_admin &&
 				'sliced-invoices' === sliced_woocommerce_get_object_property( $order, 'order', 'payment_method' )
 			) {
+				
+				// @HACK to prevent double emails in WC >= 3.9
+				update_post_meta( $order->get_id(), '_sliced_email_sent', '1' );
 
                 echo wpautop( wptexturize( $this->instructions ) ) . PHP_EOL;
 
