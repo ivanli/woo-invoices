@@ -463,7 +463,7 @@ if ( ! defined('ABSPATH') ) {
 						$output .= '<br/><span class="description">';
 						$item_metas = sliced_get_woocommerce_order_item_metas( $item );
 						foreach ( $item_metas as $key => $value ) {
-							if ( $value > '' ) {
+							if ( $value > '' && $key[0] !== '_' ) {
 								$output .= '<strong>'.$key.':</strong> '.$value.'<br />';
 							}
 						}
